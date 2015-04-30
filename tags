@@ -4,32 +4,48 @@
 !_TAG_PROGRAM_NAME	gotags
 !_TAG_PROGRAM_URL	https://github.com/jstemmer/gotags
 !_TAG_PROGRAM_VERSION	1.3.0
-C	discretecosinetransform/discretecosinetransform.go	116;"	i	line:116
-DCT	discretecosinetransform/discretecosinetransform.go	122;"	f	access:public	line:122	signature:(c cli.Command)
+AdjustSrcArr	discretecosinetransform/discretecosinetransform.go	167;"	f	access:public	line:167	signature:(dctarr []float32)	type:[]float32
+C	discretecosinetransform/discretecosinetransform.go	126;"	i	line:126
+CFloatArr2GoFloat32Arr	discretecosinetransform/discretecosinetransform.go	191;"	f	access:public	line:191	signature:(cdctarr unsafe.Pointer, size int)	type:[]float32
+DCT	discretecosinetransform/discretecosinetransform.go	203;"	f	access:public	line:203	signature:(cmd cli.Command)
+DCTArr	discretecosinetransform/discretecosinetransform.go	142;"	t	access:public	line:142	type:struct
+DNA2Num	discretecosinetransform/discretecosinetransform.go	146;"	v	access:public	line:146
+DNA2Pixel	discretecosinetransform/discretecosinetransform.go	148;"	f	access:public	line:148	signature:(tl alphabet.Letters)	type:[]float32
+GoFloat32Arr2CFloatArr	discretecosinetransform/discretecosinetransform.go	183;"	f	access:public	line:183	signature:(srcarr []float32, csrcarr unsafe.Pointer)
 KC	kmercount/kmercount.go	43;"	f	access:public	line:43	signature:(c cli.Command)
 KVT	kmercount/kmercount.go	20;"	t	access:public	line:20	type:uint16
 Kmerdef	pkc.go	10;"	c	access:public	line:10
 RCVaule	kmercount/kmercount.go	32;"	f	access:public	line:32	signature:(v uint64, size int)	type:uint64
 app	pkc.go	21;"	v	access:private	line:21
+code.google.com/p/biogo/alphabet	discretecosinetransform/discretecosinetransform.go	136;"	i	line:136
 code.google.com/p/biogo/alphabet	kmercount/kmercount.go	14;"	i	line:14
+code.google.com/p/biogo/io/seqio/fasta	discretecosinetransform/discretecosinetransform.go	137;"	i	line:137
 code.google.com/p/biogo/io/seqio/fasta	kmercount/kmercount.go	15;"	i	line:15
+code.google.com/p/biogo/seq/linear	discretecosinetransform/discretecosinetransform.go	138;"	i	line:138
 code.google.com/p/biogo/seq/linear	kmercount/kmercount.go	16;"	i	line:16
+compress/gzip	discretecosinetransform/discretecosinetransform.go	129;"	i	line:129
 compress/gzip	kmercount/kmercount.go	12;"	i	line:12
+dct	discretecosinetransform/discretecosinetransform.go	143;"	w	access:private	ctype:DCTArr	line:143	type:[]float32
 discretecosinetransform	discretecosinetransform/discretecosinetransform.go	1;"	p	line:1
 fmt	kmercount/kmercount.go	4;"	i	line:4
 ga/bnt	kmercount/kmercount.go	5;"	i	line:5
-github.com/jwaldrip/odin/cli	discretecosinetransform/discretecosinetransform.go	119;"	i	line:119
+github.com/jwaldrip/odin/cli	discretecosinetransform/discretecosinetransform.go	139;"	i	line:139
 github.com/jwaldrip/odin/cli	kmercount/kmercount.go	17;"	i	line:17
 github.com/jwaldrip/odin/cli	pkc.go	5;"	i	line:5
 init	pkc.go	25;"	f	access:private	line:25	signature:()
+io	discretecosinetransform/discretecosinetransform.go	130;"	i	line:130
 io	kmercount/kmercount.go	6;"	i	line:6
 kmercount	kmercount/kmercount.go	1;"	p	line:1
+log	discretecosinetransform/discretecosinetransform.go	131;"	i	line:131
 log	kmercount/kmercount.go	7;"	i	line:7
 main	pkc.go	1;"	p	line:1
 main	pkc.go	44;"	f	access:private	line:44	signature:()
+math	discretecosinetransform/discretecosinetransform.go	132;"	i	line:132
 math	kmercount/kmercount.go	8;"	i	line:8
+os	discretecosinetransform/discretecosinetransform.go	133;"	i	line:133
 os	kmercount/kmercount.go	9;"	i	line:9
 pkc/discretecosinetransform	pkc.go	6;"	i	line:6
 pkc/kmercount	pkc.go	7;"	i	line:7
 strconv	kmercount/kmercount.go	10;"	i	line:10
 transUint64	kmercount/kmercount.go	22;"	f	access:private	line:22	signature:(ks alphabet.Letters)	type:uint64
+unsafe	discretecosinetransform/discretecosinetransform.go	134;"	i	line:134
