@@ -9,6 +9,19 @@ package discretecosinetransform
 // #include <cxcore.h>
 // #include <lapacke.h>
 /*
+
+
+typedef struct {
+  double *s;
+  double *u;
+  double *vt;
+} SV ;
+
+typedef struct {
+  double *cdctarr;
+  CvMat *dst;
+} DCTRet;
+
 void jpgcvDCT() {
   IplImage *input, *output, *b;
   input = cvLoadImage("dct_orig.png",CV_LOAD_IMAGE_COLOR);
@@ -23,40 +36,17 @@ void jpgcvDCT() {
   cvSaveImage("/db/goworkspace/src/pkc/dct.jpg", b_dct);
 }
 
-float* NewFloatArray(int length) {
-  float *arr = calloc(length, sizeof(float));
+double* NewdoubleArray(int length) {
+  double *arr = calloc(length, sizeof(double));
   return arr;
 }
 
-inline void SetFloatArray(float *arr, int pos, float val) {
+inline void SetdoubleArray(double *arr, int pos, double val) {
   arr[pos] = val;
 }
 
-float* ReadsDCT(float *data, const int length) {
-  printf("data pointer address: %p\t", data);
-  printf("length: %d, clang arr:\t", length);
-  printf("%d:%f, %d:%f\n", 0, data[0], length-1, data[length-1]);
-  // for( int i = 0; i < length; i++) {
-  //   printf("%f ");
-  // }
-  printf("\n");
-  float row = sqrt(length);
-  if(row * row != length  && (int)row % 2 == 0) {
-    fprintf(stderr, "[ReadsDCT]the input data matrix rows and columns must be equaled and even, exit...\n");
-      exit(1);
-  }
-
-  CvMat src32 ;
-  CvMat *dst32 = cvCreateMat(row, row, CV_32FC1);
-  cvInitMatHeader(&src32, row,row ,CV_32FC1, data, CV_AUTOSTEP);
-  cvDCT(&src32,dst32,CV_DXT_FORWARD);
-
-  return (float*)dst32->data.fl;
-
-}
-
 // Auxiliary routine: printing a matrix
-void print_matrix( char* desc, int m, int n, float* a, int lda  ) {
+void print_matrix( char* desc, int m, int n, double* a, int lda  ) {
 	int i, j;
 	printf( "\n %s\n", desc  );
 	for( i = 0; i < m; i++  ) {
@@ -65,37 +55,96 @@ void print_matrix( char* desc, int m, int n, float* a, int lda  ) {
 	}
 }
 
-void SVD(float *dataMat, const int row, const int column) {
+void print_cvMat(CvMat *mat) {
+  printf("[print_cvMat]cvMat:\n");
+  for(int i = 0; i <mat->rows;i++) {
+    for(int j = 0; j < mat->cols; j++) {
+      printf(" %6.2f", cvmGet(mat, i, j));
+    }
+    printf("\n");
+  }
+}
+
+DCTRet ReadsDCT(double *data, const int length) {
+  // printf("data pointer address: %p\t", data);
+  // printf("length: %d, clang arr:\t", length);
+  // printf("%d:%f, %d:%f\n", 0, data[0], length-1, data[length-1]);
+  // for( int i = 0; i < length; i++) {
+  //   printf("%f ");
+  // }
+  // printf("\n");
+  double row = sqrt(length);
+  if(row * row != length  && (int)row % 2 == 0) {
+    fprintf(stderr, "[ReadsDCT]the input data matrix rows and columns must be equaled and even, exit...\n");
+      exit(1);
+  }
+
+  CvMat src64 ;
+  CvMat *dst64 = cvCreateMat(row, row, CV_64FC1);
+  cvInitMatHeader(&src64, row,row ,CV_64FC1, data, CV_AUTOSTEP);
+  cvDCT(&src64,dst64,CV_DXT_FORWARD);
+  // print_cvMat(dst64);
+  // print_matrix("dst64", dst64->rows, dst64->cols, (double*)dst64->data.db, dst64->cols);
+  // free work
+  cvReleaseData(&src64);
+  // free(data);
+
+  DCTRet dctRet;
+  dctRet.cdctarr = (double*)dst64->data.db;
+  dctRet.dst = dst64;
+  return dctRet;
+
+}
+
+SV PSVD() {
+  pdgesvd('V','N',m, n, dataMat, 1,1,)
+}
+
+SV SVD(double *dataMat, const int row, const int column) {
 	// Locals
 	int M = row, N = column;
 	int LDA = N, LDU = M, LDVT = N;
 	int m = M, n = N, lda = LDA, ldu = LDU, ldvt = LDVT,info;
 
 	int min = row > column ? column :row;
-	float superb[min-1];
-	float s[N], u[LDU *M], vt[LDVT *N];
+	// double superb[min-1];
+	double *superb = calloc(min-1, sizeof(double));
+	// double s[N], u[LDU *M], vt[LDVT *N];
+	double *s = calloc(N, sizeof(double));
+	// double *u = calloc(LDU * M, sizeof(double));
+	double *u = calloc(LDU * M, sizeof(double));
+	double *vt = calloc(LDVT *N, sizeof(double));
 
 	// Executable statements
-	printf( " DGESVD Example Program Results\n"  );
+	printf( "[C.SVD] DGESVD Example Program Results\n");
+	fflush(stdout);
 
 	// Compute SVD
-	info = LAPACKE_sgesvd( LAPACK_ROW_MAJOR,'A', 'A', m, n, dataMat, lda, s, u, ldu, vt, ldvt,superb);
+	// info = LAPACKE_dgesvd( LAPACK_ROW_MAJOR,'A', 'A', m, n, dataMat, lda, s, u, ldu, vt, ldvt,superb);
+	info = LAPACKE_dgesvd( LAPACK_ROW_MAJOR,'O', 'N', m, n, dataMat, lda, s, u, ldu, NULL, ldvt,superb);
 	// dgesvd("All", "All", &m, &n, dataMat, &lda, s, u, &ldu, vt, &ldvt, wkopt, &lwork);
 	// lwork = (int)wkopt;
-	// work = (float*)malloc(lwork * sizeof(float));
+	// work = (double*)malloc(lwork * sizeof(double));
 	// LAPACKE_sgesvd("All", "All", &m, &n, dataMat, &lda, s, u, &ldu, vt, &ldvt, work, &lwork, &info);
 	// // check for convergence
 	if(info > 0) {
 	  fprintf(stderr, "[__FUNC__] The algorithm computing SVD failed to converge.\n");
+	  fflush(stderr);
 	  exit(1);
 	}
 	// Print singular values
-	print_matrix( "Singular values", 1, n, s, 1  );
+	print_matrix( "Singular values", 1, n, s, 1);
 	// Print left singular vectors
 	print_matrix( "Left singular vectors (stored columnwise)", m, n, u, ldu  );
 	// Print right singular vectors
 	print_matrix( "Right singular vectors (stored rowwise)", n, n, vt, ldvt  );
 	// Free workspace
+	free(superb);
+	// free(s); free(u); free(vt);
+	SV sv;
+	sv.s = s; sv.u = u; sv.vt = vt;
+
+	return sv;
 }
 
   // IplImage *image=0;
@@ -183,21 +232,52 @@ import (
 	"log"
 	"math"
 	"os"
+	"sort"
 	"unsafe"
 
 	"code.google.com/p/biogo/alphabet"
 	"code.google.com/p/biogo/io/seqio/fasta"
 	"code.google.com/p/biogo/seq/linear"
 	"github.com/jwaldrip/odin/cli"
+	smatrix "github.com/skelterjohn/go.matrix"
 )
 
 type DCTArr struct {
 	dct []float64
 }
 
-var DNA2Num = [5]C.float{0, 63, 127, 191, 255}
+type SvdVect struct {
+	ID     string
+	LeftSV []float64
+}
 
-func DNA2Pixel(tl alphabet.Letters) (srcarr []C.float) {
+var Deviation float64 = 0.05
+
+type SvdVectArr []SvdVect
+
+func (sva SvdVectArr) Len() int {
+	return len(sva)
+}
+
+func (sva SvdVectArr) Less(i, j int) bool {
+	for x, y := 0, 0; x < len(sva[i].LeftSV) && y < len(sva[j].LeftSV); x, y = x+1, y+1 {
+		if math.Abs(sva[i].LeftSV[x]-sva[j].LeftSV[y]) < sva[i].LeftSV[x]*Deviation {
+			continue
+		} else {
+			return sva[i].LeftSV[x] < sva[j].LeftSV[y]
+		}
+	}
+
+	return len(sva[i].LeftSV) < len(sva[j].LeftSV)
+}
+
+func (sva SvdVectArr) Swap(i, j int) {
+	sva[i], sva[j] = sva[j], sva[i]
+}
+
+var DNA2Num = [5]C.double{0, 63, 127, 191, 255}
+
+func DNA2Pixel(tl alphabet.Letters) (srcarr []C.double) {
 	for _, e := range tl {
 		switch e {
 		case 'A':
@@ -216,7 +296,7 @@ func DNA2Pixel(tl alphabet.Letters) (srcarr []C.float) {
 	return
 }
 
-func AdjustSrcArr(dctarr []C.float) []C.float {
+func AdjustSrcArr(dctarr []C.double) []C.double {
 	sq := math.Sqrt(float64(len(dctarr)))
 	if sq-math.Floor(sq) != 0 || int(sq)%2 != 0 {
 		size := int(math.Floor(sq)) + 1
@@ -232,24 +312,24 @@ func AdjustSrcArr(dctarr []C.float) []C.float {
 	return dctarr
 }
 
-func GoFloat32Arr2CFloatArr(srcarr []float32, csrcarr unsafe.Pointer) {
+func Gofloat64Arr2CdoubleArr(srcarr []float64, csrcarr unsafe.Pointer) {
 	p := uintptr(csrcarr)
 	for _, e := range srcarr {
-		// *(*C.float)(unsafe.Pointer(&p)) = C.float(e)
-		*(*C.float)(unsafe.Pointer(&p)) = C.float(e)
+		// *(*C.double)(unsafe.Pointer(&p)) = C.double(e)
+		*(*C.double)(unsafe.Pointer(&p)) = C.double(e)
 		fmt.Printf("%v\t", p)
-		fmt.Printf("%f\t", *(*float32)(csrcarr))
+		fmt.Printf("%f\t", *(*float64)(csrcarr))
 		p += unsafe.Sizeof(e)
 		fmt.Printf("%v\t", p)
 	}
-	fmt.Printf("%f\t", *(*float32)(csrcarr))
+	fmt.Printf("%f\t", *(*float64)(csrcarr))
 }
 
-func CFloatArr2GoFloat32Arr(cdctarr unsafe.Pointer, size int) (dctarr []float32) {
+func CdoubleArr2Gofloat64Arr(cdctarr unsafe.Pointer, size int) (dctarr []float64) {
 	p := uintptr(cdctarr)
 
 	for i := 0; i < size; i++ {
-		j := *(*float32)(unsafe.Pointer(p))
+		j := *(*float64)(unsafe.Pointer(p))
 		dctarr = append(dctarr, j)
 		p += unsafe.Sizeof(j)
 	}
@@ -257,12 +337,12 @@ func CFloatArr2GoFloat32Arr(cdctarr unsafe.Pointer, size int) (dctarr []float32)
 	return dctarr
 }
 
-func PrintCdctarr(cdctarr *C.float, length int) {
+func PrintCdctarr(cdctarr *C.double, length int) {
 	p := uintptr(unsafe.Pointer(cdctarr))
 	row := int(math.Sqrt(float64(length)))
 	for i := 0; i < row; i++ {
 		for j := 0; j < row; j++ {
-			x := *(*float32)(unsafe.Pointer(p))
+			x := *(*float64)(unsafe.Pointer(p))
 			fmt.Printf("%f ", x)
 			p += unsafe.Sizeof(x)
 		}
@@ -270,22 +350,19 @@ func PrintCdctarr(cdctarr *C.float, length int) {
 	}
 }
 
-func GetPrimeDCTArr(cdctarr *C.float, length int, retsize int) (transdct []C.float) {
+// get the most high power(left-up) square matrix
+func GetPrimeDCTArr(cdctarr *C.double, length int, rows, cols int) (transdct []C.double) {
 	p := uintptr(unsafe.Pointer(cdctarr))
-	if retsize >= length {
-		log.Fatalf("[GetPrimeDCTArr] Get size:%d bigger than length:%d\n", retsize, length)
+	if rows*cols >= length {
+		log.Fatalf("[GetPrimeDCTArr] Get size: %dX%d matrix bigger than length:%d\n", rows, cols, length)
 	}
-	row := int(math.Sqrt(float64(length)))
-	// i note row , j note columu
-	x := *(*C.float)(unsafe.Pointer(p))
-	for j := 0; j < row; j++ {
-		for i, z := 0, j; i < row && z >= 0; i, z = i+1, z-1 {
-			tp := p + uintptr(i*row+z)*unsafe.Sizeof(x)
-			x := *(*C.float)(unsafe.Pointer(tp))
+
+	x := *(*C.double)(unsafe.Pointer(p))
+	for i := 0; i < rows; i++ {
+		for j := 0; j < cols; j++ {
+			tp := p + uintptr(i*cols+j)*unsafe.Sizeof(x)
+			x := *(*C.double)(unsafe.Pointer(tp))
 			transdct = append(transdct, x)
-			if len(transdct) >= retsize {
-				return transdct
-			}
 		}
 	}
 
@@ -295,7 +372,7 @@ func GetPrimeDCTArr(cdctarr *C.float, length int, retsize int) (transdct []C.flo
 func DCT(cmd cli.Command) {
 	// C.jpgcvDCT()
 	// C.ReadsDCT()
-	// float* ReadsDCT(float data[], const int length) {
+	// double* ReadsDCT(double data[], const int length) {
 	faName := cmd.Parent().Flag("f").String()
 	fafp, err := os.Open(faName)
 	if err != nil {
@@ -304,8 +381,9 @@ func DCT(cmd cli.Command) {
 	defer fafp.Close()
 	fagzip, err := gzip.NewReader(fafp)
 	far := fasta.NewReader(fagzip, linear.NewSeq("", nil, alphabet.DNA))
-	var dctMatArr []C.float
-	var inputDCTArrLen int = 1024
+	var dctMatArr []C.double
+	var rows, cols int = 30, 30
+	var svdVectArr SvdVectArr
 
 	for {
 		if s, err := far.Read(); err != nil {
@@ -315,36 +393,77 @@ func DCT(cmd cli.Command) {
 				log.Fatalf("failed read %v:%s\n", faName, err)
 			}
 		} else {
+			// fmt.Printf("ID: %v\n", s.CloneAnnotation().ID)
 			t := s.(*linear.Seq)
 			tl := t.Slice().(alphabet.Letters)
-			// skip the length smaller than inputDCTArrLen
-			if len(tl) < inputDCTArrLen {
+			// skip the length smaller than rows*cols
+			if len(tl) < rows*cols {
 				continue
 			}
+			var svdVect SvdVect
+			svdVect.ID = s.CloneAnnotation().ID
+			svdVectArr = append(svdVectArr, svdVect)
 			srcarr := DNA2Pixel(tl)
 			srcarr = AdjustSrcArr(srcarr)
 			fmt.Printf("array len: %d, srcarr: %d:%f, %d:%f\n", len(srcarr), 0, srcarr[0], len(srcarr)-1, srcarr[len(srcarr)-1])
-			// csrcarr := C.NewFloatArray(C.int(len(srcarr)))
+			// csrcarr := C.NewdoubleArray(C.int(len(srcarr)))
 			// defer C.free(unsafe.Pointer(csrcarr))
 			// fmt.Printf("Transform before:%v\n", csrcarr)
-			// GoFloat32Arr2CFloatArr(srcarr, unsafe.Pointer(csrcarr))
+			// Gofloat64Arr2CdoubleArr(srcarr, unsafe.Pointer(csrcarr))
 			// fmt.Printf("Transform after:%v\n", csrcarr)
-			cdctarr := C.ReadsDCT(&srcarr[0], C.int(len(srcarr)))
+			dctRet := C.ReadsDCT(&srcarr[0], C.int(len(srcarr)))
+			cdctarr := dctRet.cdctarr
+			dst := dctRet.dst
 			// defer C.free(unsafe.Pointer(cdctarr))
-			// dctarr := CFloatArr2GoFloat32Arr(unsafe.Pointer(cdctarr), len(srcarr))
+			// dctarr := CdoubleArr2Gofloat64Arr(unsafe.Pointer(cdctarr), len(srcarr))
 			// fmt.Printf("dctarr: %v\n", cdctarr)
-			PrintCdctarr(cdctarr, len(srcarr))
-			transdct := GetPrimeDCTArr(cdctarr, len(srcarr), inputDCTArrLen)
+			// PrintCdctarr(cdctarr, len(srcarr))
+			transdct := GetPrimeDCTArr(cdctarr, len(srcarr), rows, cols)
+			if len(transdct) != rows*cols {
+				log.Fatalf("len(transdct):%d	!= rows*cols:%d\n", len(transdct), rows*cols)
+			}
 			dctMatArr = append(dctMatArr, transdct...)
 			// var a DCTArr
 			// a.dct = dctarr
 			// dctMat = append(dctMat, a)
+			// C.free(unsafe.Pointer(cdctarr))
+			C.cvReleaseMat(&dst)
 
 		}
 	}
 
 	// compute SVD matrix
-	row := len(dctMatArr) / inputDCTArrLen
-	C.SVD(&dctMatArr[0], C.int(row), C.int(inputDCTArrLen))
 
+	vectNum := len(dctMatArr) / (rows * cols)
+	fmt.Printf("[SVD]len(dctMatArr): %d, vectNum: %v, len(svdVectArr): %d\n", len(dctMatArr), vectNum, len(svdVectArr))
+	svM := C.SVD(&dctMatArr[0], C.int(vectNum), C.int(rows*cols))
+	C.free(unsafe.Pointer(svM.vt))
+	fmt.Printf("\n[SVD]svM: %v, svM.s: %v, svM.u: %v\n", svM, svM.s, svM.u)
+	os.Stdout.Sync()
+	singluarV := CdoubleArr2Gofloat64Arr(unsafe.Pointer(svM.s), rows*cols)
+	C.free(unsafe.Pointer(svM.s))
+	fmt.Printf("[SVD]singluarV: %v\n", singluarV)
+	os.Stdout.Sync()
+	// stored by columnwise
+	e := *(*float64)(unsafe.Pointer(svM.u))
+	for i := 0; i < vectNum; i++ {
+		var leftVect []float64
+		for j := 0; j < rows*cols; j++ {
+			p := uintptr(unsafe.Pointer(svM.u)) + unsafe.Sizeof(e)*uintptr(i*vectNum+j)
+			v := *(*float64)(unsafe.Pointer(p))
+			leftVect = append(leftVect, v)
+		}
+		// leftVect := CdoubleArr2Gofloat64Arr(unsafe.Pointer(p), rows*cols)
+		svdVectArr[i].LeftSV = leftVect
+		// fmt.Printf("[SVD]LeftSV: %v\n", svdVectArr[i])
+	}
+	C.free(unsafe.Pointer(svM.u))
+
+	// sort left Singluar Vectors
+	fmt.Printf("After sort Left Singluar Vectors\n")
+	os.Stdout.Sync()
+	sort.Sort(svdVectArr)
+	for _, item := range svdVectArr {
+		fmt.Printf("%v: %v\n", item.ID, item.LeftSV)
+	}
 }
