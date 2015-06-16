@@ -4,51 +4,70 @@
 !_TAG_PROGRAM_NAME	gotags
 !_TAG_PROGRAM_URL	https://github.com/jstemmer/gotags
 !_TAG_PROGRAM_VERSION	1.3.0
-AdjustSrcArr	discretecosinetransform/discretecosinetransform.go	228;"	f	access:public	line:228	signature:(dctarr []C.double)	type:[]C.double
-C	discretecosinetransform/discretecosinetransform.go	186;"	i	line:186
-CdoubleArr2Gofloat64Arr	discretecosinetransform/discretecosinetransform.go	257;"	f	access:public	line:257	signature:(cdctarr unsafe.Pointer, size int)	type:[]float64
-DCT	discretecosinetransform/discretecosinetransform.go	304;"	f	access:public	line:304	signature:(cmd cli.Command)
-DCTArr	discretecosinetransform/discretecosinetransform.go	203;"	t	access:public	line:203	type:struct
-DNA2Num	discretecosinetransform/discretecosinetransform.go	207;"	v	access:public	line:207
-DNA2Pixel	discretecosinetransform/discretecosinetransform.go	209;"	f	access:public	line:209	signature:(tl alphabet.Letters)	type:[]C.double
-GetPrimeDCTArr	discretecosinetransform/discretecosinetransform.go	282;"	f	access:public	line:282	signature:(cdctarr *C.double, length int, retsize int)	type:[]C.double
-Gofloat64Arr2CdoubleArr	discretecosinetransform/discretecosinetransform.go	244;"	f	access:public	line:244	signature:(srcarr []float64, csrcarr unsafe.Pointer)
+AdjustSrcArr	discretecosinetransform/discretecosinetransform.go	331;"	f	access:public	line:331	signature:(dctarr []C.double)	type:[]C.double
+C	discretecosinetransform/discretecosinetransform.go	230;"	i	line:230
+CdoubleArr2Gofloat64Arr	discretecosinetransform/discretecosinetransform.go	360;"	f	access:public	line:360	signature:(cdctarr unsafe.Pointer, size int)	type:[]float64
+CheckSuccAndListDir	discretecosinetransform/discretecosinetransform.go	400;"	f	access:public	line:400	signature:(dirPath string)	type:[]string, error
+CompareDctArr	discretecosinetransform/discretecosinetransform.go	441;"	f	access:public	line:441	signature:(lastDctArr, primedct []float64)
+DCT	discretecosinetransform/discretecosinetransform.go	459;"	f	access:public	line:459	signature:(cmd cli.Command)
+DCTArr	discretecosinetransform/discretecosinetransform.go	255;"	t	access:public	line:255	type:struct
+DNA2Num	discretecosinetransform/discretecosinetransform.go	291;"	v	access:public	line:291
+DNA2Pixel	discretecosinetransform/discretecosinetransform.go	293;"	f	access:public	line:293	signature:(tl alphabet.Letters, min int)	type:[]C.double
+Deviation	discretecosinetransform/discretecosinetransform.go	265;"	v	access:public	line:265	type:float64
+GetPrimeDCTArr	discretecosinetransform/discretecosinetransform.go	386;"	f	access:public	line:386	signature:(dctarr []float64, length int, rows, cols int)	type:[]float64
+Gofloat64Arr2CdoubleArr	discretecosinetransform/discretecosinetransform.go	347;"	f	access:public	line:347	signature:(srcarr []float64, csrcarr unsafe.Pointer)
+ID	discretecosinetransform/discretecosinetransform.go	260;"	w	access:public	ctype:SvdVect	line:260	type:string
 KC	kmercount/kmercount.go	43;"	f	access:public	line:43	signature:(c cli.Command)
 KVT	kmercount/kmercount.go	20;"	t	access:public	line:20	type:uint16
 Kmerdef	pkc.go	10;"	c	access:public	line:10
-PrintCdctarr	discretecosinetransform/discretecosinetransform.go	269;"	f	access:public	line:269	signature:(cdctarr *C.double, length int)
+LeftSV	discretecosinetransform/discretecosinetransform.go	262;"	w	access:public	ctype:SvdVect	line:262	type:[]float64
+Len	discretecosinetransform/discretecosinetransform.go	269;"	m	access:public	ctype:SvdVectArr	line:269	signature:()	type:int
+Less	discretecosinetransform/discretecosinetransform.go	273;"	m	access:public	ctype:SvdVectArr	line:273	signature:(i, j int)	type:bool
+Position	discretecosinetransform/discretecosinetransform.go	261;"	w	access:public	ctype:SvdVect	line:261	type:int
+PrintCdctarr	discretecosinetransform/discretecosinetransform.go	372;"	f	access:public	line:372	signature:(cdctarr *C.double, length int)
+PrintPrimeDCT	discretecosinetransform/discretecosinetransform.go	431;"	f	access:public	line:431	signature:(ID string, primedct []float64, rows, cols int)
 RCVaule	kmercount/kmercount.go	32;"	f	access:public	line:32	signature:(v uint64, size int)	type:uint64
+StrArr2float64Arr	discretecosinetransform/discretecosinetransform.go	422;"	f	access:public	line:422	signature:(inArr []string)	type:[]float64
+SvdVect	discretecosinetransform/discretecosinetransform.go	259;"	t	access:public	line:259	type:struct
+SvdVectArr	discretecosinetransform/discretecosinetransform.go	267;"	t	access:public	line:267	type:[]SvdVect
+Swap	discretecosinetransform/discretecosinetransform.go	285;"	m	access:public	ctype:SvdVectArr	line:285	signature:(i, j int)
 app	pkc.go	21;"	v	access:private	line:21
-code.google.com/p/biogo/alphabet	discretecosinetransform/discretecosinetransform.go	197;"	i	line:197
+bufio	discretecosinetransform/discretecosinetransform.go	233;"	i	line:233
+code.google.com/p/biogo/alphabet	discretecosinetransform/discretecosinetransform.go	247;"	i	line:247
 code.google.com/p/biogo/alphabet	kmercount/kmercount.go	14;"	i	line:14
-code.google.com/p/biogo/io/seqio/fasta	discretecosinetransform/discretecosinetransform.go	198;"	i	line:198
+code.google.com/p/biogo/io/seqio/fasta	discretecosinetransform/discretecosinetransform.go	248;"	i	line:248
 code.google.com/p/biogo/io/seqio/fasta	kmercount/kmercount.go	15;"	i	line:15
-code.google.com/p/biogo/seq/linear	discretecosinetransform/discretecosinetransform.go	199;"	i	line:199
+code.google.com/p/biogo/seq/linear	discretecosinetransform/discretecosinetransform.go	249;"	i	line:249
 code.google.com/p/biogo/seq/linear	kmercount/kmercount.go	16;"	i	line:16
-compress/gzip	discretecosinetransform/discretecosinetransform.go	189;"	i	line:189
+compress/gzip	discretecosinetransform/discretecosinetransform.go	234;"	i	line:234
 compress/gzip	kmercount/kmercount.go	12;"	i	line:12
-dct	discretecosinetransform/discretecosinetransform.go	204;"	w	access:private	ctype:DCTArr	line:204	type:[]float64
+dct	discretecosinetransform/discretecosinetransform.go	256;"	w	access:private	ctype:DCTArr	line:256	type:[]float64
 discretecosinetransform	discretecosinetransform/discretecosinetransform.go	1;"	p	line:1
-fmt	discretecosinetransform/discretecosinetransform.go	190;"	i	line:190
+fmt	discretecosinetransform/discretecosinetransform.go	235;"	i	line:235
 fmt	kmercount/kmercount.go	4;"	i	line:4
 ga/bnt	kmercount/kmercount.go	5;"	i	line:5
-github.com/jwaldrip/odin/cli	discretecosinetransform/discretecosinetransform.go	200;"	i	line:200
+github.com/jwaldrip/odin/cli	discretecosinetransform/discretecosinetransform.go	250;"	i	line:250
 github.com/jwaldrip/odin/cli	kmercount/kmercount.go	17;"	i	line:17
 github.com/jwaldrip/odin/cli	pkc.go	5;"	i	line:5
 init	pkc.go	25;"	f	access:private	line:25	signature:()
-io	discretecosinetransform/discretecosinetransform.go	191;"	i	line:191
+io	discretecosinetransform/discretecosinetransform.go	236;"	i	line:236
 io	kmercount/kmercount.go	6;"	i	line:6
+io/ioutil	discretecosinetransform/discretecosinetransform.go	237;"	i	line:237
 kmercount	kmercount/kmercount.go	1;"	p	line:1
-log	discretecosinetransform/discretecosinetransform.go	192;"	i	line:192
+log	discretecosinetransform/discretecosinetransform.go	238;"	i	line:238
 log	kmercount/kmercount.go	7;"	i	line:7
 main	pkc.go	1;"	p	line:1
 main	pkc.go	44;"	f	access:private	line:44	signature:()
-math	discretecosinetransform/discretecosinetransform.go	193;"	i	line:193
+math	discretecosinetransform/discretecosinetransform.go	239;"	i	line:239
 math	kmercount/kmercount.go	8;"	i	line:8
-os	discretecosinetransform/discretecosinetransform.go	194;"	i	line:194
+os	discretecosinetransform/discretecosinetransform.go	240;"	i	line:240
 os	kmercount/kmercount.go	9;"	i	line:9
+os/exec	discretecosinetransform/discretecosinetransform.go	241;"	i	line:241
 pkc/discretecosinetransform	pkc.go	6;"	i	line:6
 pkc/kmercount	pkc.go	7;"	i	line:7
+sort	discretecosinetransform/discretecosinetransform.go	242;"	i	line:242
+strconv	discretecosinetransform/discretecosinetransform.go	243;"	i	line:243
 strconv	kmercount/kmercount.go	10;"	i	line:10
+strings	discretecosinetransform/discretecosinetransform.go	244;"	i	line:244
 transUint64	kmercount/kmercount.go	22;"	f	access:private	line:22	signature:(ks alphabet.Letters)	type:uint64
-unsafe	discretecosinetransform/discretecosinetransform.go	195;"	i	line:195
+unsafe	discretecosinetransform/discretecosinetransform.go	245;"	i	line:245
