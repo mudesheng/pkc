@@ -242,6 +242,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	"code.google.com/p/biogo/alphabet"
@@ -262,16 +263,39 @@ type SvdVect struct {
 	LeftSV   []float64
 }
 
+type DigitSrc struct {
+	ID  string
+	src []C.double
+}
+
+type ReadIDCount struct {
+	ID    string
+	count int
+}
+
+type ReadIDCountArr []ReadIDCount
+
+type NearestReadInfo struct {
+	Pos       int    // reference read start position
+	ID1       string // prime nearest read ID
+	StartPos1 int    // prime read start position
+	ID2       string // second nearest read ID
+	StartPos2 int    // second nearest read start position
+}
+
 var totalDeviation float64 = 0.02
 var singleDeviation float64 = 0.1
+
+var TopSigmaArr []float64
+
+var SegmentLen int = 8192
+var StepLen int = 100
 
 type SvdVectArr []SvdVect
 
 func (sva SvdVectArr) Len() int {
 	return len(sva)
 }
-
-var TopSigmaArr []float64
 
 func (sva SvdVectArr) Less(i, j int) bool {
 	isum := math.Abs(sva[i].LeftSV[0] * TopSigmaArr[0])
@@ -339,6 +363,28 @@ func DNA2Pixel(tl alphabet.Letters) (srcarr []C.double) {
 			srcarr = append(srcarr, DNA2Num[3])
 		case 'T':
 			srcarr = append(srcarr, DNA2Num[4])
+		default:
+			srcarr = append(srcarr, DNA2Num[0])
+		}
+	}
+
+	// fmt.Printf("tl: %v\nsrcarr:%v\n", tl.String(), srcarr)
+
+	return
+}
+
+func DNA2PixelRev(tl alphabet.Letters) (srcarr []C.double) {
+	for i := len(tl) - 1; i >= 0; i -= 1 {
+		// fmt.Printf("e:%v\n", e)
+		switch tl[i] {
+		case 'A':
+			srcarr = append(srcarr, DNA2Num[4])
+		case 'C':
+			srcarr = append(srcarr, DNA2Num[3])
+		case 'G':
+			srcarr = append(srcarr, DNA2Num[2])
+		case 'T':
+			srcarr = append(srcarr, DNA2Num[1])
 		default:
 			srcarr = append(srcarr, DNA2Num[0])
 		}
@@ -478,6 +524,271 @@ func CompareDctArr(lastDctArr, primedct []float64) {
 	fmt.Printf("difNum: %d/%d, difSign percent: %d\n", difNum, len(lastDctArr), difsign*100/len(lastDctArr))
 }
 
+// func ReadIDCountArrIndex(rIDCarr []ReadIDCount, valk string) int {
+func (rIDCarr ReadIDCountArr) Index(valk string) int {
+	for i, item := range rIDCarr {
+		if item.ID == valk {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func InsertReadIDCount(IDcount map[string]ReadIDCountArr, srck, valk string) {
+	var rIDC ReadIDCount
+	rIDC.ID = valk
+	rIDC.count = 1
+	if arr, ok := IDcount[srck]; ok {
+		pos := arr.Index(valk)
+		if pos >= 0 {
+			IDcount[srck][pos].count += 1
+		} else {
+			IDcount[srck] = append(arr, rIDC)
+		}
+	} else {
+		var rIDCarr ReadIDCountArr
+		IDcount[srck] = append(rIDCarr, rIDC)
+	}
+}
+
+func CleanReadIDCountArr(v ReadIDCountArr, MinCount int) (nv ReadIDCountArr) {
+	for _, item := range v {
+		if item.count >= MinCount {
+			nv = append(nv, item)
+		}
+	}
+
+	return nv
+}
+
+func (rca ReadIDCountArr) Len() int {
+	return len(rca)
+}
+
+func (rca ReadIDCountArr) Swap(i, j int) {
+	rca[i], rca[j] = rca[j], rca[i]
+}
+
+func (rca ReadIDCountArr) Less(i, j int) bool {
+	return rca[i].count < rca[j].count
+}
+
+func ConstrctIDcountFromfn(sortedIDRelationfn string, MinCount int) map[string]ReadIDCountArr {
+	IDcount := make(map[string]ReadIDCountArr)
+	sortedIDRelationfp, err := os.Open(sortedIDRelationfn)
+	defer sortedIDRelationfp.Close()
+	if err != nil {
+		log.Fatalf("[ConstrctIDcountFromfn] open %s failed, err: %v\n", sortedIDRelationfn, err)
+	}
+	buffp := bufio.NewReader(sortedIDRelationfp)
+
+	eof := false
+	for !eof {
+		line, err := buffp.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+				eof = true
+				continue
+			} else {
+				log.Fatalf("[ConstrctIDcountFromfn] read file: %s failed, err : %v\n", sortedIDRelationfn, err)
+			}
+		}
+
+		fds := strings.Fields(line)
+		count, err := strconv.Atoi(fds[0])
+		if err != nil {
+			log.Fatalf("[ConstrctIDcountFromfn] err: %v\n", err)
+		}
+		if count >= MinCount {
+			var rIDC ReadIDCount
+			rIDC.ID = fds[2]
+			rIDC.count = count
+			IDcount[fds[1]] = append(IDcount[fds[1]], rIDC)
+			// rIDC.ID = fds[1]
+			// IDcount[fds[2]] = append(IDcount[fds[2]], rIDC)
+		}
+	}
+
+	return IDcount
+}
+
+func IsInStringArr(storedID []string, ID string) bool {
+	for _, item := range storedID {
+		if item == ID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]int) (NearestReadInfoMap map[string]NearestReadInfo) {
+	// extract all near read ID and count occur number
+	maxWinSize := 40
+	// IDcount := make(map[string]ReadIDCountArr)
+	IDRelationfn := "IDrelation.txt"
+	IDRelationfp, err := os.Create(IDRelationfn)
+	if err != nil {
+		log.Fatalf("[ConstructNearestReadRelation] create %s err: %v\n", IDRelationfn, err)
+	}
+
+	for i, vect := range svdVectArr {
+		// sep_i := strings.LastIndex(vect.ID, "/")
+		// fmt.Printf("%s\n", vect.ID)
+		IDi := vect.ID
+		var rIDi string
+		if IDi[len(IDi)-2:] == "RC" {
+			rIDi = IDi[:len(IDi)-3]
+		} else {
+			rIDi = IDi + "_RC"
+		}
+		leftExtend, rightExtend := true, true
+		var storedID []string
+		for j := 1; j < maxWinSize; j += 1 {
+			if leftExtend == false && rightExtend == false {
+				break
+			}
+			if leftExtend == true && i-j >= 0 {
+				vj := svdVectArr[i-j]
+				if vj.ID != IDi && vj.ID != rIDi {
+					if IsInStringArr(storedID, vj.ID) == false {
+						fmt.Fprintf(IDRelationfp, "%s\t%s\t%d\t%d\n", IDi, vj.ID, vect.Position, vj.Position)
+						storedID = append(storedID, vj.ID)
+					}
+				} else {
+					leftExtend = true
+				}
+			}
+
+			if rightExtend == true && i+j < len(svdVectArr) {
+				vj := svdVectArr[i+j]
+				if vj.ID != IDi && vj.ID != rIDi {
+					if IsInStringArr(storedID, vj.ID) == false {
+						fmt.Fprintf(IDRelationfp, "%s\t%s\t%d\t%d\n", IDi, vj.ID, vect.Position, vj.Position)
+						storedID = append(storedID, vj.ID)
+					}
+				} else {
+					rightExtend = true
+				}
+			}
+
+		}
+		/*
+			for j := i - 1; j >= 0 && j > i-maxWinSize; j -= 1 {
+				vj := svdVectArr[j]
+				// sep_j := strings.LastIndex(vj.ID, "/")
+				IDj := vj.ID
+				// add ReadIDCount relation to the IDCount
+				if IDi != IDj {
+					if IDi > IDj {
+						IDi, IDj = IDj, IDi
+					}
+					fmt.Fprintf(IDRelationfp, "%s\t%s\n", IDi, IDj)
+					// InsertReadIDCount(IDcount, IDi, IDj)
+					// InsertReadIDCount(IDcount, IDj, IDi)
+				}
+			} */
+	}
+
+	IDRelationfp.Close()
+	// call system sort and uniq command
+	start := time.Now()
+	fmt.Printf("Begin sort ReadIDCountArr....")
+	// cut the first two fields
+	cutfn := IDRelationfn + ".cutf2"
+	// cutfcmd := exec.Command("cut", "-f", "1", IDRelationfn, ">", cutfn)
+	cutcmd := exec.Command("cut", "-f", "1,2", IDRelationfn)
+	cutfp, err := os.Create(cutfn)
+	if err != nil {
+		log.Fatalf("[ConstructNearestReadRelation] open %s err: %v\n", cutfn, err)
+	}
+	cutcmd.Stdout = cutfp
+	if err := cutcmd.Run(); err != nil {
+		log.Fatalf("[ConstructNearestReadRelation] cut Command called error: %v\n", err)
+	}
+	cutfp.Close()
+
+	sortedIDRelationfn := cutfn + ".sorted"
+	sortcmd := exec.Command("sort", "--parallel", "2", "-S", "6G", cutfn)
+	uniqcmd := exec.Command("uniq", "-dc", "-", sortedIDRelationfn)
+	reader, writer := io.Pipe()
+	sortcmd.Stdout = writer
+	uniqcmd.Stdin = reader
+	err1 := sortcmd.Start()
+	err2 := uniqcmd.Start()
+	err3 := sortcmd.Wait()
+	writer.Close()
+	err4 := uniqcmd.Wait()
+
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+		log.Fatalf("[ConstructNearestReadRelation] system sort command called error: %v, %v, %v, %v\n", err1, err2, err3, err4)
+	}
+	fmt.Printf("finished, used %vm\n", time.Now().Sub(start).Minutes())
+
+	// Read from sortedIDRelationfn
+	MinCount := 3
+	IDcount := ConstrctIDcountFromfn(sortedIDRelationfn, MinCount)
+
+	// delete lower than cutoff count and sort ReadIDCountArr
+	for _, v := range IDcount {
+		// IDcount[k] = CleanReadIDCountArr(v, MinCount)
+		sort.Sort(v)
+	}
+
+	// sort ReadIDCountArr
+	// for _, v := range IDcount {
+	// 	sort.Sort(v)
+	// }
+
+	// find most probable nearest read
+	var symmetryMatch int
+	var totalNum int
+	for k, v := range IDcount {
+		fmt.Printf("%v\n", v)
+		if k[len(k)-2:] != "RC" {
+			totalNum += 1
+			rIDC := v[len(v)-1]
+			ptopID := rIDC.ID
+			if ptopID[len(ptopID)-2:] == "RC" {
+				ptopID = ptopID[:len(ptopID)-3]
+			}
+			sz := readLenMap[ptopID]
+			segNum := (sz - SegmentLen) / StepLen
+			fmt.Printf("%d/%d: %f\t", rIDC.count, segNum, float64(rIDC.count)/float64(segNum))
+			rk := rIDC.ID
+			if rk[len(rk)-2:] == "RC" {
+				rk = rk[:len(rk)-3]
+			} else {
+				rk = rk + "_RC"
+			}
+			rv := IDcount[rk]
+			if len(rv) < 2 {
+				continue
+			}
+			rtopID := rv[len(rv)-1].ID
+			if rtopID[len(rtopID)-2:] == "RC" && k == rtopID[:len(rtopID)-3] {
+				symmetryMatch += 1
+				sz = readLenMap[k]
+				segNum = (sz - SegmentLen) / StepLen
+				fmt.Printf("%d/%d: %f\n", rv[len(rv)-1].count, segNum, float64(rv[len(rv)-1].count)/float64(segNum))
+			} else if sID := rv[len(rv)-2].ID; sID[len(sID)-2:] == "RC" && k == sID[:len(sID)-3] {
+				symmetryMatch += 1
+				sz = readLenMap[k]
+				segNum = (sz - SegmentLen) / StepLen
+				fmt.Printf("%d/%d: %f\n", rv[len(rv)-2].count, segNum, float64(rv[len(rv)-2].count)/float64(segNum))
+			} else {
+				fmt.Printf("\n")
+			}
+		}
+	}
+
+	fmt.Printf("symmetryMatch: %d, totalNum: %d, percent: %f\n", symmetryMatch, totalNum, float64(symmetryMatch)/float64(totalNum))
+
+	return
+}
+
 func DCT(cmd cli.Command) {
 	// C.jpgcvDCT()
 	// C.ReadsDCT()
@@ -501,11 +812,12 @@ func DCT(cmd cli.Command) {
 	// var dctMatArr []float64
 	var rows, cols int = 5, 5
 	var topSigmaNum int = 25
-	var segment_len int = 8192
-	var step_len int = 100
+	var segment_len int = SegmentLen
+	var step_len int = StepLen
 	var svdVectArr SvdVectArr
 	var vectNum = 0
 	var lastDctArr []float64
+	readLenMap := make(map[string]int)
 	// min := 100000
 
 	for {
@@ -523,54 +835,64 @@ func DCT(cmd cli.Command) {
 			if len(tl) < segment_len {
 				continue
 			}
-			srcarr := DNA2Pixel(tl)
-			for i := 0; i < len(tl)-segment_len; i += step_len {
-				var svdVect SvdVect
-				svdVect.ID = s.CloneAnnotation().ID
-				svdVect.Position = i
-				svdVectArr = append(svdVectArr, svdVect)
-				// if len(srcarr) < min {
-				// 	min = len(srcarr)
-				// }
-				// srcarr = AdjustSrcArr(srcarr)
-				segment_arr := srcarr[i : i+segment_len]
-				fmt.Printf("array len: %d, segment_arr: %d:%f, %d:%f\n", len(segment_arr), 0, segment_arr[0], len(segment_arr)-1, segment_arr[len(segment_arr)-1])
-				// csrcarr := C.NewdoubleArray(C.int(len(srcarr)))
-				// defer C.free(unsafe.Pointer(csrcarr))
-				// fmt.Printf("Transform before:%v\n", csrcarr)
-				// Gofloat64Arr2CdoubleArr(srcarr, unsafe.Pointer(csrcarr))
-				// fmt.Printf("Transform after:%v\n", csrcarr)
-				dctRet := C.ReadsDCT(&segment_arr[0], C.int(len(segment_arr)))
-				cdctarr := dctRet.cdctarr
-				dst := dctRet.dst
-				// defer C.free(unsafe.Pointer(cdctarr))
-				dctarr := CdoubleArr2Gofloat64Arr(unsafe.Pointer(cdctarr), len(segment_arr))
-				// fmt.Printf("dctarr: %v\n", cdctarr)
-				// PrintCdctarr(cdctarr, len(srcarr))
-				primedct := GetPrimeDCTArr(dctarr, len(segment_arr), 1, rows*cols)
-				if len(primedct) != rows*cols {
-					log.Fatalf("len(transdct):%d	!= rows*cols:%d\n", len(primedct), rows*cols)
-				}
-				// write prime dct to output file
-				PrintPrimeDCT(svdVect, primedct, 1, rows*cols)
-				if vectNum > 0 {
-					CompareDctArr(lastDctArr, primedct)
-				}
-				for j, e := range primedct {
-					// sl := fmt.Sprintf("%d\t%d\t%f\n", vectNum, j, e)
-					// SVDAfp.WriteString(sl)
-					fmt.Fprintf(SVDAfp, "%d\t%d\t%f\n", vectNum, j, e)
-				}
-				vectNum += 1
+			digitArr := make([]DigitSrc, 2)
+			digitArr[0].ID = s.CloneAnnotation().ID
+			digitArr[0].src = DNA2Pixel(tl)
+			digitArr[1].ID = digitArr[0].ID + "_RC"
+			digitArr[1].src = DNA2PixelRev(tl)
+			readLenMap[digitArr[0].ID] = len(tl)
 
-				// dctMatArr = append(dctMatArr, primedct...)
-				// var a DCTArr
-				// a.dct = dctarr
-				// dctMat = append(dctMat, a)
-				// C.free(unsafe.Pointer(cdctarr))
-				C.cvReleaseMat(&dst)
-				lastDctArr = primedct
+			for _, dsrc := range digitArr {
+				for i := 0; i < len(dsrc.src)-segment_len; i += step_len {
+					var svdVect SvdVect
+					svdVect.ID = dsrc.ID
+					svdVect.Position = i
+					svdVectArr = append(svdVectArr, svdVect)
+					// if len(srcarr) < min {
+					// 	min = len(srcarr)
+					// }
+					// srcarr = AdjustSrcArr(srcarr)
+					segment_arr := dsrc.src[i : i+segment_len]
+					fmt.Printf("array len: %d, segment_arr: %d:%f, %d:%f\n", len(segment_arr), 0, segment_arr[0], len(segment_arr)-1, segment_arr[len(segment_arr)-1])
+					// csrcarr := C.NewdoubleArray(C.int(len(srcarr)))
+					// defer C.free(unsafe.Pointer(csrcarr))
+					// fmt.Printf("Transform before:%v\n", csrcarr)
+					// Gofloat64Arr2CdoubleArr(srcarr, unsafe.Pointer(csrcarr))
+					// fmt.Printf("Transform after:%v\n", csrcarr)
+					dctRet := C.ReadsDCT(&segment_arr[0], C.int(len(segment_arr)))
+					cdctarr := dctRet.cdctarr
+					dst := dctRet.dst
+					// defer C.free(unsafe.Pointer(cdctarr))
+					dctarr := CdoubleArr2Gofloat64Arr(unsafe.Pointer(cdctarr), len(segment_arr))
+					// fmt.Printf("dctarr: %v\n", cdctarr)
+					// PrintCdctarr(cdctarr, len(srcarr))
+					primedct := GetPrimeDCTArr(dctarr, len(segment_arr), 1, rows*cols)
+					if len(primedct) != rows*cols {
+						log.Fatalf("len(transdct):%d	!= rows*cols:%d\n", len(primedct), rows*cols)
+					}
+					// write prime dct to output file
+					PrintPrimeDCT(svdVect, primedct, 1, rows*cols)
+					if vectNum > 0 {
+						CompareDctArr(lastDctArr, primedct)
+					}
+					for j, e := range primedct {
+						// sl := fmt.Sprintf("%d\t%d\t%f\n", vectNum, j, e)
+						// SVDAfp.WriteString(sl)
+						fmt.Fprintf(SVDAfp, "%d\t%d\t%f\n", vectNum, j, e)
+					}
+					vectNum += 1
+
+					// dctMatArr = append(dctMatArr, primedct...)
+					// var a DCTArr
+					// a.dct = dctarr
+					// dctMat = append(dctMat, a)
+					// C.free(unsafe.Pointer(cdctarr))
+					C.cvReleaseMat(&dst)
+					lastDctArr = primedct
+				}
+
 			}
+
 		}
 	}
 
@@ -578,7 +900,7 @@ func DCT(cmd cli.Command) {
 	SVDAfp.Close()
 	// call system spark application
 	sparkcmd := exec.Command("/db/software/spark-1.3.1-bin-hadoop2.6/bin/spark-submit", "--class", "SVD",
-		"--driver-memory", "1G", "--executor-memory", "12G", "--driver-cores", "2",
+		"--driver-memory", "6G", "--executor-memory", "12G", "--driver-cores", "2",
 		"/db/goworkspace/src/pkc/test/svd-scala-spark/target/scala-2.10/svd_2.10-1.0.jar", SVDAfn, strconv.Itoa(topSigmaNum))
 	sparkstdout, _ := os.Create("spark.stdout")
 	defer sparkstdout.Close()
@@ -587,7 +909,7 @@ func DCT(cmd cli.Command) {
 	defer sparkstderr.Close()
 	sparkcmd.Stderr = sparkstderr
 	if err := sparkcmd.Run(); err != nil {
-		log.Fatal("[DCT]spark Command called error")
+		log.Fatalf("[DCT]spark Command called error: %v\n", err)
 	}
 
 	// read U files
@@ -705,5 +1027,6 @@ func DCT(cmd cli.Command) {
 	}
 
 	// get every reads nearst same read order
-
+	// NearestReadInfoMap := ConstructNearestReadRelation(svdVectArr, readLenMap)
+	ConstructNearestReadRelation(svdVectArr, readLenMap)
 }
