@@ -34,7 +34,10 @@ func init() {
 	// }
 	// cdbg := app.DefineSubCommand("kc", "kmer count", kmercount.KC)
 	app.DefineSubCommand("kc", "kmer count", kmercount.KC)
-	app.DefineSubCommand("dct", "Discrete Cosine Transform", discretecosinetransform.DCT)
+	dct := app.DefineSubCommand("dct", "Discrete Cosine Transform", discretecosinetransform.DCT)
+	{
+		dct.DefineIntFlag("Depth", discretecosinetransform.Depth, "Sequence Depth coverage")
+	}
 	// {
 	// 	cdbg.DefineIntFlag("tipMaxLen", Kmerdef*2, "Maximum tip length")
 	// }

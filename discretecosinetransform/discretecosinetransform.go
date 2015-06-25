@@ -288,6 +288,7 @@ var singleDeviation float64 = 0.1
 
 var TopSigmaArr []float64
 
+var Depth int = 20
 var SegmentLen int = 8192
 var StepLen int = 100
 
@@ -570,8 +571,9 @@ func (rca ReadIDCountArr) Swap(i, j int) {
 	rca[i], rca[j] = rca[j], rca[i]
 }
 
+// decrease sort
 func (rca ReadIDCountArr) Less(i, j int) bool {
-	return rca[i].count < rca[j].count
+	return rca[i].count > rca[j].count
 }
 
 func ConstrctIDcountFromfn(sortedIDRelationfn string, MinCount int) map[string]ReadIDCountArr {
@@ -624,6 +626,45 @@ func IsInStringArr(storedID []string, ID string) bool {
 	return false
 }
 
+func GetUnionArr(v, rv ReadIDCountArr) (unionArr ReadIDCountArr) {
+	vMaxSize := Depth
+	if vMaxSize > len(v) {
+		vMaxSize = len(v)
+	}
+	for i, e := range v[:vMaxSize] {
+		if e.ID[len(e.ID)-2:] == "RC" {
+			v[i].ID = e.ID[:len(e.ID)-3]
+		}
+	}
+
+	rvMaxSize := Depth
+	if rvMaxSize > len(rv) {
+		rvMaxSize = len(rv)
+	}
+
+	for i, e := range rv[:rvMaxSize] {
+		if e.ID[len(e.ID)-2:] == "RC" {
+			rv[i].ID = e.ID[:len(e.ID)-3]
+		}
+	}
+
+	for _, ei := range v[:vMaxSize] {
+		for _, ej := range rv[:rvMaxSize] {
+			if ei.ID == ej.ID {
+				var rIDC ReadIDCount
+				rIDC.ID = ei.ID
+				rIDC.count = ei.count + ej.count
+				unionArr = append(unionArr, rIDC)
+				break
+			}
+		}
+	}
+
+	sort.Sort(unionArr)
+
+	return unionArr
+}
+
 func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]int) (NearestReadInfoMap map[string]NearestReadInfo) {
 	// extract all near read ID and count occur number
 	maxWinSize := 40
@@ -658,7 +699,7 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 						storedID = append(storedID, vj.ID)
 					}
 				} else {
-					leftExtend = true
+					leftExtend = false
 				}
 			}
 
@@ -670,7 +711,7 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 						storedID = append(storedID, vj.ID)
 					}
 				} else {
-					rightExtend = true
+					rightExtend = false
 				}
 			}
 
@@ -711,7 +752,7 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 	cutfp.Close()
 
 	sortedIDRelationfn := cutfn + ".sorted"
-	sortcmd := exec.Command("sort", "--parallel", "2", "-S", "6G", cutfn)
+	sortcmd := exec.Command("sort", "--parallel", "2", "-S", "4G", "-k", "1,1", "-k", "2,2", "-k", "3,3n", "-o", sortedIDRelationfn, IDRelationfn)
 	uniqcmd := exec.Command("uniq", "-dc", "-", sortedIDRelationfn)
 	reader, writer := io.Pipe()
 	sortcmd.Stdout = writer
@@ -728,7 +769,7 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 	fmt.Printf("finished, used %vm\n", time.Now().Sub(start).Minutes())
 
 	// Read from sortedIDRelationfn
-	MinCount := 3
+	MinCount := 5
 	IDcount := ConstrctIDcountFromfn(sortedIDRelationfn, MinCount)
 
 	// delete lower than cutoff count and sort ReadIDCountArr
@@ -745,42 +786,33 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 	// find most probable nearest read
 	var symmetryMatch int
 	var totalNum int
+	var nounionNum int
 	for k, v := range IDcount {
-		fmt.Printf("%v\n", v)
+		// fmt.Printf("%v\n", v)
 		if k[len(k)-2:] != "RC" {
 			totalNum += 1
-			rIDC := v[len(v)-1]
-			ptopID := rIDC.ID
-			if ptopID[len(ptopID)-2:] == "RC" {
-				ptopID = ptopID[:len(ptopID)-3]
-			}
-			sz := readLenMap[ptopID]
-			segNum := (sz - SegmentLen) / StepLen
-			fmt.Printf("%d/%d: %f\t", rIDC.count, segNum, float64(rIDC.count)/float64(segNum))
-			rk := rIDC.ID
-			if rk[len(rk)-2:] == "RC" {
-				rk = rk[:len(rk)-3]
-			} else {
-				rk = rk + "_RC"
-			}
+			rk := k + "_RC"
 			rv := IDcount[rk]
-			if len(rv) < 2 {
+			unionArr := GetUnionArr(v, rv)
+
+			if len(unionArr) == 0 {
+				nounionNum += 1
 				continue
 			}
-			rtopID := rv[len(rv)-1].ID
-			if rtopID[len(rtopID)-2:] == "RC" && k == rtopID[:len(rtopID)-3] {
-				symmetryMatch += 1
-				sz = readLenMap[k]
-				segNum = (sz - SegmentLen) / StepLen
-				fmt.Printf("%d/%d: %f\n", rv[len(rv)-1].count, segNum, float64(rv[len(rv)-1].count)/float64(segNum))
-			} else if sID := rv[len(rv)-2].ID; sID[len(sID)-2:] == "RC" && k == sID[:len(sID)-3] {
-				symmetryMatch += 1
-				sz = readLenMap[k]
-				segNum = (sz - SegmentLen) / StepLen
-				fmt.Printf("%d/%d: %f\n", rv[len(rv)-2].count, segNum, float64(rv[len(rv)-2].count)/float64(segNum))
-			} else {
-				fmt.Printf("\n")
+			symIDC := unionArr[0]
+			rcsymID := symIDC.ID + "_RC"
+			symUnionArr := GetUnionArr(IDcount[symIDC.ID], IDcount[rcsymID])
+			if len(symUnionArr) == 0 {
+				nounionNum += 1
+				continue
 			}
+			if symUnionArr[0].ID == k {
+				symmetryMatch += 1
+			}
+			// sz := readLenMap[symIDC.ID]
+			// segNum := (sz - SegmentLen) / StepLen
+			fmt.Printf("%s\t%v\n", k, unionArr)
+			fmt.Printf("%s\t%v\n\n", symIDC.ID, symUnionArr)
 		}
 	}
 
@@ -795,6 +827,12 @@ func DCT(cmd cli.Command) {
 	// double* ReadsDCT(double data[], const int length) {
 	faName := cmd.Parent().Flag("f").String()
 	prefix := cmd.Parent().Flag("p").String()
+	arg, err := strconv.Atoi(cmd.Flag("Depth").String())
+	if err != nil {
+		log.Fatalf("[DCT] Depth Get() error: %v\n", err)
+	} else {
+		Depth = arg
+	}
 	SVDAfn := prefix + ".svdA"
 	SVDAfp, err := os.Create(SVDAfn)
 	// defer SVDAfp.Close()
