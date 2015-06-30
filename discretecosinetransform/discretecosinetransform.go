@@ -576,7 +576,7 @@ func (rca ReadIDCountArr) Less(i, j int) bool {
 	return rca[i].count > rca[j].count
 }
 
-func ConstrctIDcountFromfn(sortedIDRelationfn string, MinCount int) map[string]ReadIDCountArr {
+func ConstrctIDcountFromfn(sortedIDRelationfn string, MinCountPercent float64, readLenMap map[string]int) map[string]ReadIDCountArr {
 	IDcount := make(map[string]ReadIDCountArr)
 	sortedIDRelationfp, err := os.Open(sortedIDRelationfn)
 	defer sortedIDRelationfp.Close()
@@ -585,11 +585,28 @@ func ConstrctIDcountFromfn(sortedIDRelationfn string, MinCount int) map[string]R
 	}
 	buffp := bufio.NewReader(sortedIDRelationfp)
 
+	var k1, k2 string
+	wc := 0
+	MinCount := 5
+
 	eof := false
 	for !eof {
 		line, err := buffp.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
+				if wc > MinCount {
+					min := readLenMap[k1]
+					if min > readLenMap[k2] {
+						min = readLenMap[k2]
+					}
+					segNum := (min - SegmentLen) / StepLen
+					if float64(wc) > float64(segNum)*MinCountPercent {
+						var idc ReadIDCount
+						idc.ID = k2
+						idc.count = wc
+						IDcount[k1] = append(IDcount[k1], idc)
+					}
+				}
 				err = nil
 				eof = true
 				continue
@@ -599,17 +616,25 @@ func ConstrctIDcountFromfn(sortedIDRelationfn string, MinCount int) map[string]R
 		}
 
 		fds := strings.Fields(line)
-		count, err := strconv.Atoi(fds[0])
-		if err != nil {
-			log.Fatalf("[ConstrctIDcountFromfn] err: %v\n", err)
-		}
-		if count >= MinCount {
-			var rIDC ReadIDCount
-			rIDC.ID = fds[2]
-			rIDC.count = count
-			IDcount[fds[1]] = append(IDcount[fds[1]], rIDC)
-			// rIDC.ID = fds[1]
-			// IDcount[fds[2]] = append(IDcount[fds[2]], rIDC)
+		if fds[0] != k1 || fds[1] != k2 {
+			if wc > MinCount {
+				min := readLenMap[k1]
+				if min > readLenMap[k2] {
+					min = readLenMap[k2]
+				}
+				segNum := (min - SegmentLen) / StepLen
+				if float64(wc) > float64(segNum)*MinCountPercent {
+					var idc ReadIDCount
+					idc.ID = k2
+					idc.count = wc
+					IDcount[k1] = append(IDcount[k1], idc)
+				}
+			}
+			k1 = fds[0]
+			k2 = fds[1]
+			wc = 0
+		} else {
+			wc += 1
 		}
 	}
 
@@ -693,25 +718,29 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 			}
 			if leftExtend == true && i-j >= 0 {
 				vj := svdVectArr[i-j]
-				if vj.ID != IDi && vj.ID != rIDi {
-					if IsInStringArr(storedID, vj.ID) == false {
-						fmt.Fprintf(IDRelationfp, "%s\t%s\t%d\t%d\n", IDi, vj.ID, vect.Position, vj.Position)
-						storedID = append(storedID, vj.ID)
+				if vj.ID != rIDi {
+					if vj.ID != IDi {
+						if IsInStringArr(storedID, vj.ID) == false {
+							fmt.Fprintf(IDRelationfp, "%s\t%s\t%d\t%d\n", IDi, vj.ID, vect.Position, vj.Position)
+							storedID = append(storedID, vj.ID)
+						}
+					} else {
+						leftExtend = false
 					}
-				} else {
-					leftExtend = false
 				}
 			}
 
 			if rightExtend == true && i+j < len(svdVectArr) {
 				vj := svdVectArr[i+j]
-				if vj.ID != IDi && vj.ID != rIDi {
-					if IsInStringArr(storedID, vj.ID) == false {
-						fmt.Fprintf(IDRelationfp, "%s\t%s\t%d\t%d\n", IDi, vj.ID, vect.Position, vj.Position)
-						storedID = append(storedID, vj.ID)
+				if vj.ID != rIDi {
+					if vj.ID != IDi && vj.ID != rIDi {
+						if IsInStringArr(storedID, vj.ID) == false {
+							fmt.Fprintf(IDRelationfp, "%s\t%s\t%d\t%d\n", IDi, vj.ID, vect.Position, vj.Position)
+							storedID = append(storedID, vj.ID)
+						}
+					} else {
+						rightExtend = false
 					}
-				} else {
-					rightExtend = false
 				}
 			}
 
@@ -736,41 +765,17 @@ func ConstructNearestReadRelation(svdVectArr SvdVectArr, readLenMap map[string]i
 	IDRelationfp.Close()
 	// call system sort and uniq command
 	start := time.Now()
+	sortedIDRelationfn := IDRelationfn + ".sorted"
 	fmt.Printf("Begin sort ReadIDCountArr....")
-	// cut the first two fields
-	cutfn := IDRelationfn + ".cutf2"
-	// cutfcmd := exec.Command("cut", "-f", "1", IDRelationfn, ">", cutfn)
-	cutcmd := exec.Command("cut", "-f", "1,2", IDRelationfn)
-	cutfp, err := os.Create(cutfn)
-	if err != nil {
-		log.Fatalf("[ConstructNearestReadRelation] open %s err: %v\n", cutfn, err)
-	}
-	cutcmd.Stdout = cutfp
-	if err := cutcmd.Run(); err != nil {
-		log.Fatalf("[ConstructNearestReadRelation] cut Command called error: %v\n", err)
-	}
-	cutfp.Close()
-
-	sortedIDRelationfn := cutfn + ".sorted"
 	sortcmd := exec.Command("sort", "--parallel", "2", "-S", "4G", "-k", "1,1", "-k", "2,2", "-k", "3,3n", "-o", sortedIDRelationfn, IDRelationfn)
-	uniqcmd := exec.Command("uniq", "-dc", "-", sortedIDRelationfn)
-	reader, writer := io.Pipe()
-	sortcmd.Stdout = writer
-	uniqcmd.Stdin = reader
-	err1 := sortcmd.Start()
-	err2 := uniqcmd.Start()
-	err3 := sortcmd.Wait()
-	writer.Close()
-	err4 := uniqcmd.Wait()
-
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-		log.Fatalf("[ConstructNearestReadRelation] system sort command called error: %v, %v, %v, %v\n", err1, err2, err3, err4)
+	if err := sortcmd.Run(); err != nil {
+		log.Fatalf("[ConstructNearestReadRelation] sort Command called error: %v\n", err)
 	}
 	fmt.Printf("finished, used %vm\n", time.Now().Sub(start).Minutes())
 
 	// Read from sortedIDRelationfn
-	MinCount := 5
-	IDcount := ConstrctIDcountFromfn(sortedIDRelationfn, MinCount)
+	MinCountPercent := 0.1
+	IDcount := ConstrctIDcountFromfn(sortedIDRelationfn, MinCountPercent, readLenMap)
 
 	// delete lower than cutoff count and sort ReadIDCountArr
 	for _, v := range IDcount {
